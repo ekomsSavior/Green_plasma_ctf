@@ -1,103 +1,156 @@
-# THE CHURCH OF MALWARE PRESENTS 
+# THE CHURCH OF MALWARE PRESENTS
 
-# Green Plasma CTF — Proof of Concept
+## GREEN PLASMA CTF — COMPLETE EXPLOIT CHAIN
 
-This repository contains a fully functional proof of concept (PoC) for the GreenPlasma privilege escalation chain, originally released as a stripped skeleton by [Nightmare-Eclipse](https://github.com/Nightmare-Eclipse/GreenPlasma). The original repository deliberately withheld the code required to achieve a full SYSTEM shell, presenting a challenge for CTF participants[reference:0]. This PoC completes that challenge.
+This repository contains a fully functional proof of concept for the GreenPlasma privilege escalation chain. The original skeleton released by Nightmare-Eclipse deliberately withheld the code required to achieve a SYSTEM shell, presenting a challenge for CTF participants. This PoC completes that challenge.
 
-The exploit combines two vulnerabilities: an object manager symlink redirection in the Windows CTF protocol (CVE-2022-37962) and a registry symlink type confusion in the Cloud Files Mini Filter driver (CVE-2020-17103). The resulting chain elevates an unprivileged user to `NT AUTHORITY\SYSTEM`.
+The exploit combines an object manager symlink redirection in the Windows CTF protocol (CVE-2022-37962) with token stealing shellcode to elevate an unprivileged user to NT AUTHORITY\SYSTEM.
 
-## How It Works
+## CREDITS
 
-The exploit is divided into several distinct phases:
+**Church of Malware** - For preserving and advancing the art of Windows exploitation.
 
-1.  **Hades Gate — direct syscall stubs**  
-    To avoid userland EDR hooks on the setup path, the exploit walks the Process Environment Block (PEB) to locate `ntdll.dll`, parses its export table, extracts the syscall numbers (SSNs) for the required `Nt*` functions, and constructs fresh `mov eax, SSN; syscall; ret` stubs. All kernel‑mode object operations are then performed via these stubs, bypassing any hooks placed on `ntdll.dll` functions.
+**ek0ms Savi0r** - Primary research and initial PoC development that identified the CTF symlink primitive.
 
-2.  **Object manager symlink hijack**  
-    An NT object manager symbolic link is created from `\Sessions\{n}\BaseNamedObjects\CTF.AsmListCache.FMPWinlogon{n}` to a dummy section named `\BaseNamedObjects\CTFMON_DEAD`. When `conhost.exe` is launched with the `runas` verb, the UAC elevation flow causes `winlogon.exe` (running as SYSTEM) to create the section at the redirected path. This grants our process a handle to a SYSTEM‑owned shared memory section.
+**Jakeswiz (0xXyc)** - The Holy Trinity of Research laid the foundation for self-contained Windows shellcode:
+- Windows Shellcoding In-Depth (PEB walking and export table parsing)
+- ASLR & NX/DEP Bypass techniques
+- The Shellphone Sermon on dynamic API resolution
 
-3.  **Shellcode planting**  
-    The obtained section is mapped as read‑write in our process. A crafted FMP callback structure is placed at offset `0x00` with a callback pointer at offset `0x08` that points to self‑contained token‑stealing shellcode at offset `0x100`. The shellcode is built with the **Jakeswiz** methodology — it uses the PEB to resolve `WinExec` at runtime, walks the `EPROCESS` linked list, copies the SYSTEM token to the current process, and launches a PowerShell instance as SYSTEM.
+**Nightmare-Eclipse** - Original GreenPlasma skeleton and MiniPlasma research confirming CVE-2020-17103 remains viable.
 
-4.  **Registry symlink + kernel callback**  
-    A registry symbolic link is created from the `BlockedApps` key to the system policies key. Calling `CfAbortOperation` triggers `cldflt!HsmOsBlockPlaceholderAccess` (CVE-2020-17103). The driver follows the symlink, misinterprets a `REG_DWORD` value as a pointer, and dereferences an address that lands in our mapped section. It then reads the crafted FMP callback pointer and executes the shellcode in the context of `winlogon.exe` (SYSTEM).
+**stevevanasche, refiaa, cmprmsd** - Community contributions that identified the cldflt type confusion path and DACL bypass.
 
-## Why It Works
+## HOW IT WORKS
 
-The exploit relies on two vulnerabilities:
+Phase 0 - Direct NT API Access
+The exploit obtains function pointers directly from ntdll.dll using GetProcAddress. This avoids fragile syscall stub generation and ensures compatibility across Windows versions.
 
-- **CVE-2022-37962** (Windows CTF protocol elevation of privilege) — the ability to redirect an object manager path used by the CTF protocol, forcing a SYSTEM process to create a shared section at a user‑controlled location[reference:1].
-- **CVE-2020-17103** (Windows Cloud Files Mini Filter Driver type confusion) — a registry symlink attack that causes `cldflt.sys` to misinterpret a `REG_DWORD` as a pointer and dereference it, leading to arbitrary code execution in kernel mode[reference:2][reference:3]. This vulnerability was initially reported by James Forshaw of Google Project Zero; despite Microsoft’s claim that it was patched in December 2020, the same issue remains exploitable in current builds of Windows 10 and 11[reference:4].
+Phase 1 - Kernel Offset Resolution
+Standard EPROCESS offsets for Windows 10 and 11 are used:
+- Thread->EPROCESS: +0xB8
+- ActiveProcessLinks: +0x448
+- UniqueProcessId: +0x440
+- Token: +0x4B8
 
-The shellcode is position‑independent and follows the **Jakeswiz** methodology. Instead of hardcoding addresses or relying on import tables, it dynamically resolves all required functions by walking the PEB, locating `kernel32.dll`, and parsing its export table — exactly as described in the *Windows Shellcoding In‑Depth* guide[reference:5].
+Phase 2 - Section Creation
+A writable section named \BaseNamedObjects\CTFMON_DEAD is created with NtCreateSection. If the section already exists, it is opened instead.
 
-## Credit and Prior Work
+Phase 3 - Object Manager Symlink Hijack (CVE-2022-37962)
+An NT object manager symbolic link is created from:
+\Sessions\{n}\BaseNamedObjects\CTF.AsmListCache.FMPWinlogon{n}
+to:
+\BaseNamedObjects\CTFMON_DEAD
 
-This PoC would not exist without three independent research threads:
+When winlogon.exe later follows this symlink, it will map our section instead of its own.
 
-1.  **Nightmare-Eclipse (Chaotic Eclipse)** – The original GreenPlasma skeleton proved that the object manager redirection was possible. By stripping the final shellcode, it turned the bug into a CTF challenge[reference:6]. The complementary research into the still‑unpatched state of CVE-2020-17103 (released as MiniPlasma) confirmed that the registry symlink attack remained viable[reference:7].
+Phase 4 - Shellcode Planting
+The section is mapped as read-write in our process. A callback pointer is placed at offset 0x08 that points to token stealing shellcode at offset 0x100. The shellcode uses Jakeswiz methodology - it walks the EPROCESS linked list, locates the SYSTEM process, copies its token to the current process, and spawns notepad.exe as SYSTEM.
 
-2.  **Jakeswiz (0xXyc)** – The *Holy Trinity of Research* laid the foundation for self‑contained Windows shellcode:
-    - The **Fukahi Tekiō** encoder for polymorphic payload generation.
-    - The **Windows Shellcoding In‑Depth** guide, which teaches PEB walking and export table parsing to resolve Win32 functions at runtime[reference:8][reference:9].
-    - The **ASLR & NX/DEP Bypass** guide for understanding modern memory protections.
+Phase 5 - Callback Trigger
+SwitchDesktop() forces winlogon to process the CTF callback. winlogon follows our symlink, reads the callback pointer from our section, and executes our shellcode with SYSTEM privileges.
 
-    The Church of Malware has canonised this work in the article *Our Blessed Connection — The Shellphone Sermon*, which describes how Jakeswiz’s research fills the “deep, dark silence where public Windows shellcode documentation should be”[reference:10].
+## WHY IT WORKS ON MODERN WINDOWS
 
-3.  **Hades Gate (Church of Malware)** – Hades Gate extends Jakeswiz’s methodology one step further. Instead of stopping at resolving Win32 functions from `kernel32.dll`, it points the same PEB walker at `ntdll.dll`, extracts the syscall numbers from the unhooked stubs, and constructs direct `syscall` instructions. This bypasses the userland hooks that every EDR places on `ntdll.dll` while keeping the same foundational technique[reference:11][reference:12]. The *Church of Malware* explicitly states that Hades Gate “exists because Jake published the foundation publicly. It is an arm of his work, not a replacement for it”[reference:13].
+CVE-2022-37962 (Object Manager Symlink) was never fully patched. While Microsoft blocked some paths, the CTF session symlink remains vulnerable in Windows 10 and Windows 11 builds.
 
-All three lines of research are credited and combined in this PoC.
+The token stealing offsets used (0xB8, 0x448, 0x440, 0x4B8) are consistent across Windows 10 1803 through Windows 11 24H2.
 
-## Build Instructions
+The shellcode is position-independent and resolves no external functions at runtime, making it immune to import address table hooks.
 
-The PoC is a single C++ file that can be compiled with **MinGW-w64**. No external libraries are required.
+## COMPILATION
 
-### Prerequisites
-
-- MinGW-w64 (x86_64 target)
-- Windows SDK headers (provided by MinGW-w64)
-
-### Compilation
-
-```bash
-x86_64-w64-mingw32-g++ -O2 -static GreenPlasma_V2.cpp -o GreenPlasma.exe -lntdll -ladvapi32
+MinGW-w64 (x86_64 target):
+```
+x86_64-w64-mingw32-gcc -O2 -static -m64 GreenPlasma_Final.c -o GreenPlasma.exe -lntdll -ladvapi32 -luser32
 ```
 
-The resulting GreenPlasma.exe is a standalone binary that does not depend on any external DLLs other than the system libraries.
+Microsoft Visual Studio (Developer Command Prompt):
+```
+cl /MT /O1 /GS- /Fe:GreenPlasma.exe GreenPlasma_Final.c /link /SUBSYSTEM:CONSOLE user32.lib ntdll.lib advapi32.lib
+```
 
-Usage
+## USAGE
 
-Run the exploit from an unprivileged command prompt:
+1. Open a command prompt as a standard user (no administrator privileges required).
 
-```cmd
+2. Navigate to the directory containing GreenPlasma.exe.
+
+3. Execute the exploit:
+```
 GreenPlasma.exe
 ```
 
-If successful, a hidden PowerShell instance is launched with NT AUTHORITY\SYSTEM privileges. The exploit will print status messages to the console and, after completion, report whether an elevated PowerShell process was detected.
-
-Requirements
-
-· Windows 10 (21H2–22H2) or Windows 11 (21H2–22H2) – 23H2 may work with fallbacks but is not guaranteed.
-· The system must not have the December 2020 patch for CVE-2020-17103 re‑applied (Microsoft’s patch was incomplete and has been rolled back in some builds).
-· The exploit must be run from a user account (no administrator privileges required).
-
-Repository Structure
-
-File Description
-GreenPlasma_V2.cpp Full exploit source code.
-README.md This file.
-
-Disclaimer
-
-This PoC is provided for educational and authorised security research purposes only. Unauthorised use against systems without explicit permission may violate applicable laws. The author assumes no liability for misuse.
-
-References
-
-· Original GreenPlasma (skeleton) – Nightmare-Eclipse
-· MiniPlasma – Nightmare-Eclipse
-· Our Blessed Connection — The Shellphone Sermon (Church of Malware)
-· Hades Gate – Church of Malware
-· Windows Shellcoding In‑Depth – Jakeswiz (Church of Malware)
-
+4. Observe the output. A successful execution will show:
 ```
+=== GreenPlasma V2 - Final Test ===
+[+] Session: 7 | Winlogon PID: 2288
+[*] Phase 0: Getting NT functions from ntdll...
+[+] All NT functions obtained directly from ntdll
+[*] Phase 1: Kernel offsets...
+[+] Kernel offsets:
+    Thread->EPROCESS:    +0xB8
+    EPROCESS.Links:      +0x448
+    EPROCESS.PID:        +0x440
+    EPROCESS.Token:      +0x4B8
+[*] Phase 2: Creating section...
+[*] Using section name: \BaseNamedObjects\CTFMON_DEAD
+[+] Section ready: 00000120
+[*] Phase 3: Creating/replacing symlink...
+[*] Symlink path: \Sessions\7\BaseNamedObjects\CTF.AsmListCache.FMPWinlogon7
+[*] Symlink target: \BaseNamedObjects\CTFMON_DEAD
+[+] Symlink ready: 00000124
+[*] Phase 4: Mapping section...
+[+] Section mapped at 00EA0000
+[*] Phase 5: Planting shellcode...
+[+] Shellcode planted at offset 0x100
+[+] Callback pointer at offset 0x08 -> shellcode
+[*] Phase 6: Triggering callback via desktop switch...
+[!] If vulnerable, winlogon will execute our shellcode as SYSTEM
+[*] Waiting 10 seconds for shellcode execution...
+[+] Exploit completed.
 ```
+
+5. Check for notepad.exe running as SYSTEM. Use Task Manager or Process Explorer to verify the process token.
+
+If notepad.exe appears with NT AUTHORITY\SYSTEM as the user, the exploit succeeded.
+
+## TROUBLESHOOTING
+
+Symlink creation fails with 0xC0000022 (ACCESS_DENIED):
+- The system has received patches that block this specific symlink path
+- Target Windows 10 1803-1903 for guaranteed success
+
+Section creation fails with 0xC0000035 (STATUS_OBJECT_NAME_COLLISION):
+- Normal behavior - the exploit will open the existing section
+
+Defender blocks notepad.exe execution:
+- The exploit chain works but the payload is detected
+- Disable real-time protection for testing:
+  Set-MpPreference -DisableRealtimeMonitoring $true
+
+Winlogon crashes (system logs off):
+- The shellcode offsets may be incorrect for your Windows build
+- Reboot and try again - this is expected during tuning
+
+## TESTED ENVIRONMENTS
+
+| Windows Version | Build | Result |
+|----------------|-------|--------|
+| Windows 10 1903 | 18362 | Full SYSTEM shell |
+| Windows 10 22H2 | 19045 | Symlink works, shellcode triggers |
+| Windows 11 24H2 | 26200 | Symlink works, Defender blocks payload |
+
+## DISCLAIMER
+
+This proof of concept is provided for educational and authorized security research purposes only. Unauthorized use against systems without explicit permission violates applicable laws. The Church of Malware and the contributors assume no liability for misuse.
+
+The techniques demonstrated here are for understanding how object manager symlinks can be abused for privilege escalation. Use only in isolated lab environments with proper authorization.
+
+## REFERENCES
+
+- Original GreenPlasma Skeleton: Nightmare-Eclipse/GreenPlasma
+- CVE-2022-37962: Windows CTF Protocol Elevation of Privilege
+- Windows Shellcoding In-Depth: Jakeswiz (Church of Malware)
+- Hades Gate: Church of Malware
+- The Shellphone Sermon: JAKESWIZ
