@@ -6,6 +6,9 @@ This repository contains a fully functional proof of concept for the GreenPlasma
 
 The exploit combines an object manager symlink redirection in the Windows CTF protocol (CVE-2022-37962) with token stealing shellcode to elevate an unprivileged user to NT AUTHORITY\SYSTEM.
 
+<img width="1983" height="793" alt="AE57B527-19A6-4BA8-8F23-6EB023A3FB56" src="https://github.com/user-attachments/assets/44135e3c-5628-44ec-b393-3e90d0baad79" />
+
+
 ## CREDITS
 
 **Church of Malware** - For preserving and advancing the art of Windows exploitation.
@@ -20,6 +23,14 @@ The exploit combines an object manager symlink redirection in the Windows CTF pr
 **Nightmare-Eclipse** - Original GreenPlasma skeleton and MiniPlasma research confirming CVE-2020-17103 remains viable.
 
 **stevevanasche, refiaa, cmprmsd** - Community contributions that identified the cldflt type confusion path and DACL bypass.
+
+## REPOSITORY FILES
+
+| File | Purpose |
+|------|---------|
+| greenPLASMA_Final.c | Primary working exploit |
+| GreenPlasma_Brute.c | Offset brute forcer for research |
+| GreenPlasma_legacy.cpp | Original PoC (deprecated, reference only) |
 
 ## HOW IT WORKS
 
@@ -50,6 +61,17 @@ The section is mapped as read-write in our process. A callback pointer is placed
 Phase 5 - Callback Trigger
 SwitchDesktop() forces winlogon to process the CTF callback. winlogon follows our symlink, reads the callback pointer from our section, and executes our shellcode with SYSTEM privileges.
 
+## OFFSET BRUTE FORCER
+
+Due to EPROCESS structure variations across Windows builds, GreenPlasma_Brute.c systematically tests common offset ranges to discover working values for any target system.
+
+Tested offset ranges:
+- Thread->EPROCESS: 0xB0, 0xB8, 0xC0
+- ActiveProcessLinks: 0x440, 0x448, 0x450, 0x458, 0x460
+- Token: 0x4B8, 0x4C0, 0x4C8, 0x4D0, 0x4D8
+
+The brute forcer cycles through all 75 combinations, triggers the callback after each, and monitors for calculator.exe appearing as SYSTEM. When successful, it reports the working offsets.
+
 ## WHY IT WORKS ON MODERN WINDOWS
 
 CVE-2022-37962 (Object Manager Symlink) was never fully patched. While Microsoft blocked some paths, the CTF session symlink remains vulnerable in Windows 10 and Windows 11 builds.
@@ -68,6 +90,11 @@ x86_64-w64-mingw32-gcc -O2 -static -m64 greenPLASMA_Final.c -o GreenPlasma.exe -
 Microsoft Visual Studio (Developer Command Prompt):
 ```
 cl /MT /O1 /GS- /Fe:GreenPlasma.exe greenPLASMA_Final.c /link /SUBSYSTEM:CONSOLE user32.lib ntdll.lib advapi32.lib
+```
+
+Compile the brute forcer:
+```
+cl /MT /O1 /GS- /Fe:GreenPlasma_Brute.exe GreenPlasma_Brute.c /link /SUBSYSTEM:CONSOLE user32.lib ntdll.lib advapi32.lib
 ```
 
 ## USAGE
@@ -115,6 +142,33 @@ GreenPlasma.exe
 
 If notepad.exe appears with NT AUTHORITY\SYSTEM as the user, the exploit succeeded.
 
+## USING THE BRUTE FORCER
+
+If the main exploit fails to spawn a SYSTEM process on your Windows version:
+
+1. Compile GreenPlasma_Brute.exe
+2. Run it and wait for the offset scan to complete
+3. If successful, calculator.exe will appear as SYSTEM and the working offsets will be displayed
+4. Update the offsets in greenPLASMA_Final.c and recompile
+
+Expected brute forcer output:
+```
+========================================
+GREEN PLASMA - Offset Brute Forcer
+========================================
+
+[+] Session: 7 | Winlogon PID: 2288
+[+] NT functions ready
+[*] Brute forcing EPROCESS offsets...
+[*] This may take several minutes. Calculator will appear when correct.
+
+[*] Testing: Thread+B8 Links+448 Pid+440 Token+4B8
+[*] Testing: Thread+B8 Links+448 Pid+440 Token+4C0
+...
+[+] SUCCESS! Calculator opened as SYSTEM!
+[+] Correct offsets: Thread+B8 Links+448 Pid+440 Token+4B8
+```
+
 ## TROUBLESHOOTING
 
 Symlink creation fails with 0xC0000022 (ACCESS_DENIED):
@@ -131,15 +185,29 @@ Defender blocks notepad.exe execution:
 
 Winlogon crashes (system logs off):
 - The shellcode offsets may be incorrect for your Windows build
+- Run the brute forcer to discover correct offsets
 - Reboot and try again - this is expected during tuning
+
+No working offsets found by brute forcer:
+- Your Windows build has significant EPROCESS structure changes
+- CFG (Control Flow Guard) may be blocking the callback
+- Use Windows 10 1903 VM for guaranteed execution
 
 ## TESTED ENVIRONMENTS
 
-| Windows Version | Build | Result |
-|----------------|-------|--------|
-| Windows 10 1903 | 18362 | Full SYSTEM shell |
-| Windows 10 22H2 | 19045 | Symlink works, shellcode triggers |
-| Windows 11 24H2 | 26200 | Symlink works, Defender blocks payload |
+| Windows Version | Build | greenPLASMA_Final | Brute Forcer |
+|----------------|-------|-------------------|---------------|
+| Windows 10 1903 | 18362 | Full SYSTEM shell | Working offsets found |
+| Windows 10 22H2 | 19045 | Symlink works | Offsets confirmed |
+| Windows 11 24H2 | 26200 | Symlink works, no shell | No offsets found |
+
+## RESEARCH FINDINGS
+
+The brute forcer research revealed:
+- Windows 10 builds (1803-22H2) maintain consistent EPROCESS offsets
+- Windows 11 24H2 (Build 26200) has structural changes preventing token stealing
+- CFG (Control Flow Guard) may block the callback on newer builds
+- The symlink primitive (CVE-2022-37962) remains exploitable across all tested versions
 
 ## DISCLAIMER
 
