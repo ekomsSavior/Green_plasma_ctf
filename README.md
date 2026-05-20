@@ -11,7 +11,7 @@ The exploit combines an object manager symlink redirection in the Windows CTF pr
 
 ## CREDITS
 
-**Church of Malware** - For preserving and advancing the art of Windows exploitation.
+**Church of Malware** - For preserving and advancing the art of Windows exploitation. https://churchofmalware.org
 
 **ek0ms Savi0r** - Primary research and initial PoC development that identified the CTF symlink primitive.
 
