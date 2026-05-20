@@ -221,4 +221,4 @@ The techniques demonstrated here are for understanding how object manager symlin
 - Hades Gate: Church of Malware
 - The Shellphone Sermon: JAKESWIZ
 
-<img width="1129" height="1084" alt="IMG_4014" src="https://github.com/user-attachments/assets/e136b17c-d23c-4dd5-8b7c-16d4c23cecc2" />
+<img width="1136" height="911" alt="IMG_4024" src="https://github.com/user-attachments/assets/aa702126-18ee-49d2-9bce-0d28d775ac74" />
