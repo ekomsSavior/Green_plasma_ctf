@@ -220,3 +220,5 @@ The techniques demonstrated here are for understanding how object manager symlin
 - Windows Shellcoding In-Depth: Jakeswiz (Church of Malware)
 - Hades Gate: Church of Malware
 - The Shellphone Sermon: JAKESWIZ
+
+<img width="1129" height="1084" alt="IMG_4014" src="https://github.com/user-attachments/assets/e136b17c-d23c-4dd5-8b7c-16d4c23cecc2" />
