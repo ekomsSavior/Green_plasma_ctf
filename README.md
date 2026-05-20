@@ -2,7 +2,9 @@
 
 # GREEN PLASMA CTF — COMPLETE EXPLOIT CHAIN
 
-This repository contains a fully functional proof of concept for the GreenPlasma privilege escalation chain. The original skeleton released by Nightmare-Eclipse deliberately withheld the code required to achieve a SYSTEM shell, presenting a challenge for CTF participants. This PoC completes that challenge.
+**STATUS:** Symlink primitive confirmed working on Windows 10/11. Token stealing shellcode works fully on Windows 10 1903. Windows 11 24H2 triggers callback but shellcode fails. Research ongoing.
+
+This repository contains a proof of concept for the GreenPlasma privilege escalation chain. The original skeleton released by Nightmare-Eclipse deliberately withheld the code required to achieve a SYSTEM shell. This PoC completes that chain for Windows 10 and is actively being refined for Windows 11.
 
 The exploit combines an object manager symlink redirection in the Windows CTF protocol (CVE-2022-37962) with token stealing shellcode to elevate an unprivileged user to NT AUTHORITY\SYSTEM.
 
@@ -220,6 +222,30 @@ The techniques demonstrated here are for understanding how object manager symlin
 - Windows Shellcoding In-Depth: Jakeswiz (Church of Malware)
 - Hades Gate: Church of Malware
 - The Shellphone Sermon: JAKESWIZ
+
+## RESEARCH FINDINGS
+
+    Windows 10 builds (1803-22H2) maintain consistent EPROCESS offsets
+
+    Windows 11 24H2 (Build 26200) has structural changes preventing current shellcode
+
+    CFG (Control Flow Guard) may block the callback on newer builds
+
+    The symlink primitive (CVE-2022-37962) remains exploitable across all tested versions
+
+    Standard users cannot create sections in \BaseNamedObjects on Windows 10 22H2+ – this is a new DACL restriction
+
+## WORK IN PROGRESS — CALL FOR RESEARCH
+
+**The exploit fully works on Windows 10 1903. For Windows 11, the symlink primitive is confirmed, but the final SYSTEM shell is not yet achieved. If you have insights on:**
+
+    Windows 11 24H2 EPROCESS offsets
+
+    CFG bypass techniques for winlogon.exe callbacks
+
+    Alternative token stealing methods for newer builds
+
+Please open an issue or pull request.
 
 <img width="1983" height="793" alt="AE57B527-19A6-4BA8-8F23-6EB023A3FB56" src="https://github.com/user-attachments/assets/d5218154-cb30-494d-a4a1-5fe9455c468f" />
 
