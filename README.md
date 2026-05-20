@@ -1,8 +1,6 @@
 <img width="1983" height="793" alt="AE57B527-19A6-4BA8-8F23-6EB023A3FB56" src="https://github.com/user-attachments/assets/44135e3c-5628-44ec-b393-3e90d0baad79" />
 
-# THE CHURCH OF MALWARE PRESENTS
-
-## GREEN PLASMA CTF — COMPLETE EXPLOIT CHAIN
+# GREEN PLASMA CTF — COMPLETE EXPLOIT CHAIN
 
 This repository contains a fully functional proof of concept for the GreenPlasma privilege escalation chain. The original skeleton released by Nightmare-Eclipse deliberately withheld the code required to achieve a SYSTEM shell, presenting a challenge for CTF participants. This PoC completes that challenge.
 
