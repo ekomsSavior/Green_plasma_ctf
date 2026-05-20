@@ -62,12 +62,12 @@ The shellcode is position-independent and resolves no external functions at runt
 
 MinGW-w64 (x86_64 target):
 ```
-x86_64-w64-mingw32-gcc -O2 -static -m64 GreenPlasma_Final.c -o GreenPlasma.exe -lntdll -ladvapi32 -luser32
+x86_64-w64-mingw32-gcc -O2 -static -m64 greenPLASMA_Final.c -o GreenPlasma.exe -lntdll -ladvapi32 -luser32
 ```
 
 Microsoft Visual Studio (Developer Command Prompt):
 ```
-cl /MT /O1 /GS- /Fe:GreenPlasma.exe GreenPlasma_Final.c /link /SUBSYSTEM:CONSOLE user32.lib ntdll.lib advapi32.lib
+cl /MT /O1 /GS- /Fe:GreenPlasma.exe greenPLASMA_Final.c /link /SUBSYSTEM:CONSOLE user32.lib ntdll.lib advapi32.lib
 ```
 
 ## USAGE
